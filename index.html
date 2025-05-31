@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pengumuman Kelulusan</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body {
+      background: linear-gradient(to right, #74ebd5, #9face6);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .card {
+      border-radius: 1rem;
+      box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+      max-width: 500px;
+      width: 100%;
+    }
+    .modal-content {
+      border-radius: 1rem;
+    }
+    #loadingSpinner {
+      display: none;
+    }
+    #countdown {
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      color: #dc3545;
+    }
+    #toastContainer {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast Notification -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Form Pencarian -->
+  <div class="card p-4">
+    <h3 class="text-center mb-3">Pengumuman Kelulusan
+    <br>SDIT Izzatul Islam Getasan <br>Tahun 2025</h3>
+    <div id="countdown">Memuat waktu pengumuman...</div>
+    <p class="text-center">Masukkan NISN Anda untuk melihat hasil kelulusan.</p>
+    <form id="searchForm">
+      <div class="mb-3">
+        <input type="text" id="nisn" class="form-control" placeholder="Masukkan NISN" required disabled />
+      </div>
+      <div class="d-grid">
+        <button type="submit" class="btn btn-primary" id="searchBtn" disabled>
+          <span id="buttonText">Cari</span>
+          <span id="loadingSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Modal Hasil Kelulusan -->
+  <div class="modal fade" id="kelulusanModal" tabindex="-1" aria-labelledby="kelulusanModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow-lg">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="kelulusanModalLabel">Hasil Kelulusan</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+        </div>
+        <div class="modal-body" id="kelulusanBody">
+          <!-- Hasil akan ditampilkan di sini -->
+        </div>
+        <div class="modal-footer justify-content-center">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script -->
+  <script>
+    const scriptURL = "https://script.google.com/macros/s/AKfycbzOZlLx4FHdyGgZGap78pBWMRtXDPqjtQapAZO56wHolh9UbCYR1ovZkMCMjEU3X2nlTg/exec"; // Ganti dengan Web App URL kamu
+
+    const countdownEl = document.getElementById("countdown");
+    const searchForm = document.getElementById("searchForm");
+    const searchBtn = document.getElementById("searchBtn");
+    const nisnInput = document.getElementById("nisn");
+    const modalBody = document.getElementById("kelulusanBody");
+    const buttonText = document.getElementById("buttonText");
+    const loadingSpinner = document.getElementById("loadingSpinner");
+
+    function showToast(message, type = "info") {
+      const toastId = `toast-${Date.now()}`;
+      const colorClass = type === "success" ? "text-bg-success"
+                        : type === "error" ? "text-bg-danger"
+                        : type === "warning" ? "text-bg-warning"
+                        : "text-bg-info";
+      const toastHTML = `
+        <div id="${toastId}" class="toast ${colorClass}" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+        </div>`;
+      document.getElementById("toastContainer").insertAdjacentHTML("beforeend", toastHTML);
+      const toastEl = document.getElementById(toastId);
+      const toast = new bootstrap.Toast(toastEl);
+      toast.show();
+    }
+
+    function startCountdown(targetTime) {
+      const countdownInterval = setInterval(() => {
+        const now = new Date().getTime();
+        const distance = targetTime - now;
+
+        if (distance <= 0) {
+          clearInterval(countdownInterval);
+          countdownEl.style.display = "none";
+          nisnInput.disabled = false;
+          searchBtn.disabled = false;
+        } else {
+          const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+          const s = Math.floor((distance % (1000 * 60)) / 1000);
+          countdownEl.innerText = `Pengumuman dapat diakses dalam ${h} jam ${m} menit ${s} detik`;
+        }
+      }, 1000);
+    }
+
+    // Ambil waktu dari server
+    fetch(`${scriptURL}?action=getWaktu`)
+      .then(res => res.json())
+      .then(data => {
+        const waktuPengumuman = new Date(data.waktu);
+        startCountdown(waktuPengumuman);
+      })
+      .catch(err => {
+        countdownEl.innerText = "Gagal memuat waktu pengumuman.";
+        showToast("Gagal memuat waktu dari server.", "error");
+        console.error(err);
+      });
+
+    // Event submit pencarian
+    searchForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const nisn = nisnInput.value.trim();
+      if (!nisn) return;
+
+      const cached = sessionStorage.getItem(`kelulusan_${nisn}`);
+      buttonText.textContent = "Mencari...";
+      loadingSpinner.style.display = "inline-block";
+
+      if (cached) {
+        displayResult(JSON.parse(cached));
+        return;
+      }
+
+      fetch(`${scriptURL}?nisn=${encodeURIComponent(nisn)}`)
+        .then(res => res.json())
+        .then(data => {
+          sessionStorage.setItem(`kelulusan_${nisn}`, JSON.stringify(data));
+          displayResult(data);
+        })
+        .catch(() => {
+          showToast("Terjadi kesalahan koneksi.", "error");
+          modalBody.innerHTML = `<p class="text-center text-danger">Terjadi kesalahan. Silakan coba lagi nanti.</p>`;
+          new bootstrap.Modal(document.getElementById('kelulusanModal')).show();
+          buttonText.textContent = "Cari";
+          loadingSpinner.style.display = "none";
+        });
+    });
+
+    function displayResult(data) {
+      if (data.found) {
+        modalBody.innerHTML = `
+          <p class="text-center fs-5 mb-2">Selamat 🎉</p>
+          <p class="text-center mb-2"><strong>${data.nama}</strong></p>
+          <p class="text-center">NISN: ${data.nisn}</p>
+          <hr>
+          <p class="text-center"><strong>Status Kelulusan:</strong></p>
+          <p class="text-center fs-4 fw-bold text-success">${data.status}</p>
+        `;
+        showToast(`Data untuk ${data.nama} ditemukan.`, "success");
+      } else {
+        modalBody.innerHTML = `<p class="text-center text-danger">Maaf, data NISN tidak ditemukan.</p>`;
+        showToast("NISN tidak ditemukan.", "warning");
+      }
+
+      buttonText.textContent = "Cari";
+      loadingSpinner.style.display = "none";
+      new bootstrap.Modal(document.getElementById('kelulusanModal')).show();
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
